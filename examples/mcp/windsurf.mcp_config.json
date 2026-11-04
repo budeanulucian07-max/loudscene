@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "loudscene": {
+      "serverUrl": "https://www.loudscene.com/api/mcp",
+      "headers": { "Authorization": "Bearer ls_live_…" }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Docs
+    url: https://www.loudscene.com/docs
+    about: The CLI, the MCP server and the REST API, in full.
+  - name: Telegram
+    url: https://t.me/loudscene
+    about: The official loudscene group.

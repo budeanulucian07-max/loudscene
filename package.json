@@ -1,0 +1,27 @@
+{
+  "name": "loudscene",
+  "version": "0.1.0",
+  "description": "Paste your token's contract. We make it loud. The loudscene CLI: launch films from your terminal, and a stdio bridge to the loudscene MCP server for AI agents.",
+  "type": "module",
+  "license": "MIT",
+  "author": "loudscene (built by Nextry) <https://www.loudscene.com>",
+  "homepage": "https://www.loudscene.com/docs/cli",
+  "repository": { "type": "git", "url": "git+https://github.com/budeanulucian07-max/loudscene.git" },
+  "bugs": { "url": "https://github.com/budeanulucian07-max/loudscene/issues" },
+  "keywords": ["loudscene", "mcp", "mcp-server", "cli", "ai-video", "launch-film", "robinhood-chain", "crypto-marketing", "ai-agents"],
+  "bin": { "loudscene": "./dist/cli.js" },
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=20" },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/finish-build.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "prepublishOnly": "pnpm run typecheck && pnpm run test && pnpm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "5.9.3",
+    "vitest": "^4.0.0"
+  }
+}

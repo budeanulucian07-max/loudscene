@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "loudscene": {
+      "command": "npx",
+      "args": ["-y", "loudscene", "mcp"],
+      "env": { "LOUDSCENE_API_KEY": "ls_live_…" }
+    }
+  }
+}
