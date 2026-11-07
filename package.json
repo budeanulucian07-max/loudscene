@@ -1,6 +1,6 @@
 {
   "name": "loudscene",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Paste your token's contract. We make it loud. The loudscene CLI: launch films from your terminal, and a stdio bridge to the loudscene MCP server for AI agents.",
   "type": "module",
   "license": "MIT",

@@ -26,6 +26,15 @@ loudscene is the marketing layer for crypto projects: a **launch film**, **memes
 - **Agents.** A remote MCP server for Claude, ChatGPT, Cursor and Windsurf, and `loudscene mcp` for clients that only speak stdio.
 - **Every format.** 16:9, 9:16, 1:1 and 4:5 MP4s, up to 4K.
 
+## What's new in 0.2.0
+
+- `update <video id> --field key=value`: change a film's text and values without AI and at no cost (a new version).
+- `stills <video id> --at 1,6,12 -o ./frames`: free PNG frames, to check the look before you render.
+- `render --translate de,es`: translated copies of the video next to the MP4s (up to 3 languages).
+- `loudscene <command> --help` for one command, and a suggestion when a command is mistyped.
+
+These are the same endpoints as the MCP tools `update_video` and `create_stills`. Full list: [CHANGELOG.md](CHANGELOG.md). CLI docs: [loudscene.com/docs/cli](https://www.loudscene.com/docs/cli).
+
 ## Quick start
 
 > The package is on its way to npm. Until `npx loudscene` resolves, install it from source:
@@ -43,6 +52,11 @@ npx loudscene create --token 0xCD291FA4d3e2Eb43e4639625092D31ae10E61111 --format
 npx loudscene create --url yourbrand.com --brief "We just launched v2: twice as fast." --formats 9:16,1:1 --wait
 npx loudscene render <video id> --formats 9:16,1:1 --wait
 npx loudscene download <render id> -o ./videos
+
+# Change the text, look at a few frames, render again
+npx loudscene status <video id>                              # field keys and values
+npx loudscene update <video id> --field headline="Live on mainnet"
+npx loudscene stills <video id> --at 1,6,12 -o ./frames
 ```
 
 Prefer no install at all? Paste a contract on [loudscene.com](https://www.loudscene.com): the film plays right there, free, no account, no wallet.
@@ -58,13 +72,15 @@ Prefer no install at all? Paste a contract on [loudscene.com](https://www.loudsc
 | `brands` | | Lists brand kits |
 | `stories` | | Lists story templates and their fields |
 | `create` | `--token <contract or link>` · `--url <site>` · `--brand <kit id>` · `--brief "<text>"` · `--story <id>` · `--formats 16:9,9:16,1:1,4:5` · `--duration <s>` · `--locale <code>` · `--title <text>` · `--wait` · `--render` | Creates a video. With `--token` the brief is optional. `--wait` waits for the AI; `--render` then renders every format |
-| `status <id>` | | Status and progress of a job, a video or a render |
-| `render <video id>` | `[--formats …] [--resolution 720\|1080\|2160] [--wait]` | Renders MP4s (default: the video's main format) |
+| `status <id>` | | Status and progress of a job, a video or a render; for a video, its field keys and values |
+| `update <video id>` | `--field key=value` · `--field key:=<json>` · `--title <text>` · `--note <text>` | Changes a video's text and values without AI and at no cost, as a new version. `key:=` takes JSON for numbers, toggles, images and lists |
+| `stills <video id>` | `--at 0,4.5,12` · `[--formats <one>] [--wait] [-o <dir>]` | Free PNG frames of the current version at those seconds; `-o` saves them |
+| `render <video id>` | `[--formats …] [--resolution 720\|1080\|2160] [--translate de,es] [--wait]` | Renders MP4s (default: the video's main format). `--translate` also makes a translated copy per language (up to 3, one AI generation each) |
 | `download <render id>` | `[-o <dir>] [--wait]` | Saves a finished render as an MP4 |
 | `open <video id>` | | Opens the video in the loudscene editor |
 | `mcp` | | Runs a stdio MCP server that forwards to `/api/mcp` |
 
-Global options: `--json` (machine-readable output), `--api-url <url>`, `--timeout <s>`, `-h`, `-v`.
+Global options: `--json` (machine-readable output), `--api-url <url>`, `--timeout <s>`, `-h`, `-v`. `loudscene <command> --help` shows one command with an example.
 Environment: `LOUDSCENE_API_KEY` overrides the saved key, `LOUDSCENE_API_URL` the server.
 
 ## Use it from AI agents (MCP)
@@ -152,6 +168,7 @@ Full reference: [loudscene.com/docs/mcp](https://www.loudscene.com/docs/mcp).
 
 - [`examples/token-film.mjs`](examples/token-film.mjs): contract in, MP4 out, with the REST API and nothing but Node 20.
 - [`examples/token-film.sh`](examples/token-film.sh): the same first call with curl.
+- [`examples/edit-and-render.sh`](examples/edit-and-render.sh): change a film's text, check the frames, render it, with the CLI.
 - [`examples/mcp`](examples/mcp): MCP configs for Claude Code, Cursor, Claude Desktop and Windsurf.
 
 The REST API is documented at [loudscene.com/docs/api](https://www.loudscene.com/docs/api) (OpenAPI: `/api/v1/openapi.json`).
