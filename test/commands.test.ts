@@ -237,3 +237,30 @@ describe("stills", () => {
     expect(h.requests).toHaveLength(0);
   });
 });
+
+describe("render --translate", () => {
+  it("render --translate sends locales and waits for the translated copies", async () => {
+    const TRANSLATE = "55555555-5555-4555-8555-555555555555";
+    const COPY = "66666666-6666-4666-8666-666666666666";
+    let polls = 0;
+    const render = { id: RENDER, video_id: VIDEO, format: "16:9", resolution: 1080, fps: 30, status: "succeeded", progress: 1, url: "https://cdn.test/r.mp4", poster_url: null, error: null };
+    const translate = (done: boolean) => ({ id: TRANSLATE, kind: "translate", status: done ? "succeeded" : "queued", stage: null, progress: done ? 1 : 0, error: null, result: done ? { video_id: COPY } : null });
+    const h = await harness(
+      (m, p) => {
+        if (m === "POST" && p === `/api/v1/videos/${VIDEO}/variants`) return Response.json({ renders: [render], translations: [translate(false)] }, { status: 202 });
+        if (p === `/api/v1/jobs/${TRANSLATE}`) return Response.json(translate(++polls >= 2));
+        return undefined;
+      },
+      { LOUDSCENE_API_KEY: KEY },
+    );
+    expect(await run(["render", VIDEO, "--formats", "16:9", "--translate", "de", "--wait"], h.io)).toBe(0);
+    expect(h.requests[0]!.body).toEqual({ formats: ["16:9"], locales: ["de"] });
+    expect(h.out()).toContain("Translations (de)");
+    expect(h.out()).toContain(COPY);
+
+    h.stdout.length = 0;
+    polls = 0;
+    expect(await run(["render", VIDEO, "--formats", "16:9", "--translate", "de", "--wait", "--json"], h.io)).toBe(0);
+    expect(JSON.parse(h.out())).toMatchObject({ renders: [{ id: RENDER }], translations: [{ id: TRANSLATE, result: { video_id: COPY } }] });
+  });
+});

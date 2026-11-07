@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCli, parseFields, parseFormats, parseTimes, UsageError } from "../src/args.js";
+import { parseCli, parseFields, parseFormats, parseLocales, parseTimes, UsageError } from "../src/args.js";
 import { maskKey, resolveApiUrl, resolveKey } from "../src/config.js";
 
 describe("parseCli", () => {
@@ -70,6 +70,16 @@ describe("parseTimes", () => {
 
   it.each([[""], ["a"], ["-1"], ["601"], [Array.from({ length: 25 }, (_, i) => i).join(",")]])("refuses %j", (raw) => {
     expect(() => parseTimes(raw)).toThrow(UsageError);
+  });
+});
+
+describe("parseLocales", () => {
+  it("reads and de-duplicates language codes", () => {
+    expect(parseLocales("de, pt-BR,de")).toEqual(["de", "pt-BR"]);
+  });
+
+  it.each([["German"], ["de,es,fr,it"], [""]])("refuses %j", (raw) => {
+    expect(() => parseLocales(raw)).toThrow(UsageError);
   });
 });
 

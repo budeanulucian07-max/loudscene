@@ -67,8 +67,10 @@ Videos
   stills <video id> --at 0,4.5,12 [--formats 9:16] [--wait] [-o <dir>]
                                    PNG frames of the current version at those seconds, to check the
                                    look before rendering. Free. -o saves the PNGs (and waits)
-  render <video id> [--formats 16:9,9:16,1:1,4:5] [--resolution 720|1080|2160] [--wait]
-                                   Render MP4s (default: the video's main format)
+  render <video id> [--formats 16:9,9:16,1:1,4:5] [--resolution 720|1080|2160] [--translate de,es] [--wait]
+                                   Render MP4s (default: the video's main format). --translate also
+                                   makes a translated copy of the video per language (up to 3, one
+                                   AI generation each, Pro plan and up)
   download <render id> [-o <dir>] [--wait]
                                    Save a finished render as an MP4
   open <video id>                  Open the video in the loudscene editor
@@ -351,14 +353,25 @@ async function stills(ctx: Ctx, p: ParsedCli) {
 }
 
 async function render(ctx: Ctx, p: ParsedCli) {
-  const id = assertId(need(p.positionals, 0, "video id", "loudscene render <video id> [--formats 16:9,9:16] [--wait]"), "video");
+  const id = assertId(need(p.positionals, 0, "video id", "loudscene render <video id> [--formats 16:9,9:16] [--translate de,es] [--wait]"), "video");
   const api = await client(ctx);
   const formats = ctx.flags.formats ?? [(await api.video(id)).default_format];
-  let renders = (await api.renderFormats(id, formats, ctx.flags.resolution)).renders;
-  if (ctx.flags.wait) renders = await waitRenders(ctx, api, renders);
-  if (ctx.flags.json) return json(ctx, renders);
+  const started = await api.renderFormats(id, formats, ctx.flags.resolution, ctx.flags.translate);
+  let renders = started.renders;
+  let translations = started.translations ?? [];
+  if (ctx.flags.wait) {
+    renders = await waitRenders(ctx, api, renders);
+    translations = await Promise.all(translations.map((j) => (TERMINAL.has(j.status) ? j : poll(ctx, () => api.job(j.id), (x) => TERMINAL.has(x.status), jobLine))));
+  }
+  // Without --translate the JSON stays the plain list of renders it has always been.
+  if (ctx.flags.json) return json(ctx, ctx.flags.translate ? { renders, translations } : renders);
   printRenders(ctx, renders);
   if (!ctx.flags.wait && renders.some((r) => !TERMINAL.has(r.status))) out(ctx, `\nDownload when ready: loudscene download <render id> --wait`);
+  if (translations.length) {
+    out(ctx, `\nTranslations (${(ctx.flags.translate ?? []).join(", ")}):`);
+    out(ctx, table(translations.map((j) => [j.id, j.status, typeof j.result?.video_id === "string" ? j.result.video_id : (j.error ?? pct(j.progress))]), ["JOB", "STATUS", "COPY"]));
+    out(ctx, ctx.flags.wait ? "\nEach copy is a video of its own: loudscene render <copy id> --wait" : "\nWhen a job succeeds, `loudscene status <job id>` gives the translated copy's video id.");
+  }
 }
 
 async function download(ctx: Ctx, p: ParsedCli) {

@@ -38,6 +38,8 @@ export interface Flags {
   note?: string;
   /** Moments for stills, in seconds. */
   times?: number[];
+  /** Extra languages for render: each becomes a translated copy of the video. */
+  translate?: string[];
   output?: string;
   key?: string;
   apiUrl?: string;
@@ -71,6 +73,7 @@ const OPTIONS = {
   field: { type: "string", multiple: true },
   note: { type: "string" },
   at: { type: "string" },
+  translate: { type: "string" },
   output: { type: "string", short: "o" },
   key: { type: "string" },
   "api-url": { type: "string" },
@@ -121,6 +124,17 @@ export function parseTimes(raw: string): number[] {
   return times;
 }
 
+const LOCALE_RE = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/;
+
+/** "de,pt-BR" → ["de", "pt-BR"]; the API translates at most 3 languages per request. */
+export function parseLocales(raw: string): string[] {
+  const out = [...new Set(raw.split(",").map((s) => s.trim()).filter(Boolean))];
+  const bad = out.find((l) => !LOCALE_RE.test(l));
+  if (bad) throw new UsageError(`"${bad}" isn't a language code. Use codes like de, es or pt-BR.`);
+  if (out.length === 0 || out.length > 3) throw new UsageError("--translate takes 1 to 3 language codes per render, e.g. --translate de,es.");
+  return out;
+}
+
 function number(name: string, raw: string | undefined, check: (n: number) => boolean, hint: string): number | undefined {
   if (raw === undefined) return undefined;
   const n = Number(raw);
@@ -160,6 +174,7 @@ export function parseCli(argv: string[]): ParsedCli {
     ...(o.field !== undefined ? { fields: parseFields(o.field) } : {}),
     ...(o.note !== undefined ? { note: o.note } : {}),
     ...(o.at !== undefined ? { times: parseTimes(o.at) } : {}),
+    ...(o.translate !== undefined ? { translate: parseLocales(o.translate) } : {}),
     ...(o.output !== undefined ? { output: o.output } : {}),
     ...(o.key !== undefined ? { key: o.key } : {}),
     ...(o["api-url"] !== undefined ? { apiUrl: o["api-url"] } : {}),

@@ -147,7 +147,12 @@ export class ApiClient {
   stills(videoId: string, times: number[], format?: string) {
     return this.request<Job>("POST", `/v1/videos/${encodeURIComponent(videoId)}/stills`, { times, ...(format ? { format } : {}) });
   }
-  renderFormats(videoId: string, formats: string[], resolution?: number) {
-    return this.request<{ renders: Render[] }>("POST", `/v1/videos/${encodeURIComponent(videoId)}/variants`, { formats, ...(resolution ? { resolution } : {}) });
+  /** Renders every format of the current version; `locales` also starts one translate job per language. */
+  renderFormats(videoId: string, formats: string[], resolution?: number, locales?: string[]) {
+    return this.request<{ renders: Render[]; translations?: Job[] }>("POST", `/v1/videos/${encodeURIComponent(videoId)}/variants`, {
+      formats,
+      ...(resolution ? { resolution } : {}),
+      ...(locales?.length ? { locales } : {}),
+    });
   }
 }
