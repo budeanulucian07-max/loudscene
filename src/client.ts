@@ -78,6 +78,13 @@ export interface Story {
   fields: Record<string, { type: string; label: string }>;
 }
 
+/** A stills job's result once it has succeeded: signed PNG URLs, valid for about 10 minutes. */
+export interface StillsResult {
+  stills: { t: number; url: string | null }[];
+  layout_errors?: number;
+  layout_warnings?: number;
+}
+
 export const TERMINAL = new Set(["succeeded", "failed", "canceled"]);
 
 export class ApiClient {
@@ -135,6 +142,10 @@ export class ApiClient {
   /** Field values and/or the title, without AI and at no cost; field changes become a new version. */
   updateVideo(id: string, body: { fields?: Record<string, unknown>; title?: string; note?: string }) {
     return this.request<Video>("PATCH", `/v1/videos/${encodeURIComponent(id)}`, body);
+  }
+  /** A stills job: PNG frames of the current version at `times` seconds, free. */
+  stills(videoId: string, times: number[], format?: string) {
+    return this.request<Job>("POST", `/v1/videos/${encodeURIComponent(videoId)}/stills`, { times, ...(format ? { format } : {}) });
   }
   renderFormats(videoId: string, formats: string[], resolution?: number) {
     return this.request<{ renders: Render[] }>("POST", `/v1/videos/${encodeURIComponent(videoId)}/variants`, { formats, ...(resolution ? { resolution } : {}) });

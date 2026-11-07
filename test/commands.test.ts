@@ -189,3 +189,51 @@ describe("update", () => {
     expect(h.requests).toHaveLength(0);
   });
 });
+
+describe("stills", () => {
+  const STILLS = "44444444-4444-4444-8444-444444444444";
+  const stillsJob = (status: string) => ({
+    id: STILLS,
+    kind: "stills",
+    status,
+    stage: null,
+    progress: status === "succeeded" ? 1 : 0.4,
+    error: null,
+    result: status === "succeeded" ? { stills: [{ t: 0, url: "https://cdn.test/0.png" }, { t: 4.5, url: "https://cdn.test/4.5.png" }], layout_errors: 0, layout_warnings: 1 } : null,
+  });
+
+  it("starts a stills job, waits for it and saves the PNGs with -o", async () => {
+    let polls = 0;
+    const h = await harness(
+      (m, p) => {
+        if (m === "POST" && p === `/api/v1/videos/${VIDEO}/stills`) return Response.json(stillsJob("queued"), { status: 202 });
+        if (p === `/api/v1/jobs/${STILLS}`) return Response.json(stillsJob(++polls >= 2 ? "succeeded" : "running"));
+        return undefined;
+      },
+      { LOUDSCENE_API_KEY: KEY },
+    );
+    const dir = join(h.home, "stills");
+    expect(await run(["stills", VIDEO, "--at", "0,4.5", "--formats", "9:16", "-o", dir], h.io)).toBe(0);
+    expect(h.requests[0]!.body).toEqual({ times: [0, 4.5], format: "9:16" });
+    expect(h.requests[0]!.headers["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/);
+    const file = join(dir, "loudscene-22222222-9x16-4.5s.png");
+    expect(h.out()).toContain(file);
+    expect(h.out()).toContain("1 warning(s)");
+    expect((await readFile(file)).length).toBe(8);
+  });
+
+  it("without --wait prints the job to follow", async () => {
+    const h = await harness((m, p) => (m === "POST" && p === `/api/v1/videos/${VIDEO}/stills` ? Response.json(stillsJob("queued"), { status: 202 }) : undefined), { LOUDSCENE_API_KEY: KEY });
+    expect(await run(["stills", VIDEO, "--at", "3"], h.io)).toBe(0);
+    expect(h.requests[0]!.body).toEqual({ times: [3] });
+    expect(h.out()).toContain(`loudscene status ${STILLS}`);
+  });
+
+  it("needs --at and a single format", async () => {
+    const h = await harness(() => undefined, { LOUDSCENE_API_KEY: KEY });
+    expect(await run(["stills", VIDEO], h.io)).toBe(2);
+    expect(await run(["stills", VIDEO, "--at", "1", "--formats", "9:16,1:1"], h.io)).toBe(2);
+    expect(await run(["stills", VIDEO, "--at", "1,-2"], h.io)).toBe(2);
+    expect(h.requests).toHaveLength(0);
+  });
+});

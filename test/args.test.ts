@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCli, parseFields, parseFormats, UsageError } from "../src/args.js";
+import { parseCli, parseFields, parseFormats, parseTimes, UsageError } from "../src/args.js";
 import { maskKey, resolveApiUrl, resolveKey } from "../src/config.js";
 
 describe("parseCli", () => {
@@ -60,6 +60,16 @@ describe("parseFields", () => {
 
   it.each([["=nokey"], ["novalue"], ["price:=twenty"]])("refuses %s", (pair) => {
     expect(() => parseFields([pair])).toThrow(UsageError);
+  });
+});
+
+describe("parseTimes", () => {
+  it("reads comma-separated seconds", () => {
+    expect(parseTimes("0, 4.5,12")).toEqual([0, 4.5, 12]);
+  });
+
+  it.each([[""], ["a"], ["-1"], ["601"], [Array.from({ length: 25 }, (_, i) => i).join(",")]])("refuses %j", (raw) => {
+    expect(() => parseTimes(raw)).toThrow(UsageError);
   });
 });
 

@@ -7,7 +7,7 @@ import { pipeline } from "node:stream/promises";
 import type { Writable } from "node:stream";
 import { need, parseCli, UsageError, type Flags, type ParsedCli } from "./args.js";
 import { runBridge } from "./bridge.js";
-import { ApiClient, ApiRequestError, TERMINAL, type FetchLike, type Job, type Render, type Video } from "./client.js";
+import { ApiClient, ApiRequestError, TERMINAL, type FetchLike, type Job, type Render, type StillsResult, type Video } from "./client.js";
 import { API_KEY_RE, clearKey, configPath, maskKey, readConfig, resolveApiUrl, resolveKey, writeConfig, type Env } from "./config.js";
 import { formatSlug, pct, table } from "./output.js";
 
@@ -64,6 +64,9 @@ Videos
   update <video id> [--field key=value ...] [--field key:=<json> ...] [--title <text>] [--note <text>]
                                    Change a video's text and values, without AI and at no cost.
                                    The change is a new version: render it again for new MP4s
+  stills <video id> --at 0,4.5,12 [--formats 9:16] [--wait] [-o <dir>]
+                                   PNG frames of the current version at those seconds, to check the
+                                   look before rendering. Free. -o saves the PNGs (and waits)
   render <video id> [--formats 16:9,9:16,1:1,4:5] [--resolution 720|1080|2160] [--wait]
                                    Render MP4s (default: the video's main format)
   download <render id> [-o <dir>] [--wait]
@@ -165,6 +168,13 @@ function printRenders(ctx: Ctx, renders: Render[]) {
 
 async function waitRenders(ctx: Ctx, api: ApiClient, renders: Render[]): Promise<Render[]> {
   return Promise.all(renders.map((r) => (TERMINAL.has(r.status) ? r : poll(ctx, () => api.render(r.id), (x) => TERMINAL.has(x.status), renderLine))));
+}
+
+/** Streams a signed file URL to disk. */
+async function save(ctx: Ctx, url: string, file: string) {
+  const res = await ctx.io.fetch(url);
+  if (!res.ok || !res.body) throw new CliError(`Download failed: ${res.status} ${res.statusText}`);
+  await pipeline(Readable.fromWeb(res.body as unknown as NodeReadableStream<Uint8Array>), createWriteStream(file));
 }
 
 /* ------------------------------------------------------------------ commands */
@@ -305,6 +315,41 @@ async function update(ctx: Ctx, p: ParsedCli) {
   out(ctx, `\n${version}Render it: loudscene render ${video.id} --wait`);
 }
 
+async function stills(ctx: Ctx, p: ParsedCli) {
+  const usage = "loudscene stills <video id> --at 0,4.5,12 [--formats 9:16] [--wait] [-o <dir>]";
+  const id = assertId(need(p.positionals, 0, "video id", usage), "video");
+  const f = ctx.flags;
+  if (!f.times) throw new UsageError(`Missing --at (the moments, in seconds). Usage: ${usage}`);
+  if ((f.formats?.length ?? 0) > 1) throw new UsageError("Stills are taken in one format at a time: pass a single --formats value.");
+  const format = f.formats?.[0];
+  const api = await client(ctx);
+  let job = await api.stills(id, f.times, format);
+  if ((f.wait || f.output !== undefined) && !TERMINAL.has(job.status)) job = await poll(ctx, () => api.job(job.id), (j) => TERMINAL.has(j.status), jobLine, 2000);
+  if (job.status === "failed" || job.status === "canceled") throw new CliError(`The stills job ${job.status}${job.error ? `: ${job.error}` : "."}`);
+  const result = job.status === "succeeded" ? (job.result as StillsResult | null) : null;
+
+  const files: (string | null)[] = [];
+  if (result && f.output !== undefined) {
+    const dir = resolve(f.output);
+    await mkdir(dir, { recursive: true });
+    for (const s of result.stills) {
+      if (!s.url) {
+        files.push(null);
+        continue;
+      }
+      const file = join(dir, `loudscene-${id.slice(0, 8)}${format ? `-${formatSlug(format)}` : ""}-${s.t}s.png`);
+      await save(ctx, s.url, file);
+      files.push(file);
+    }
+  }
+  if (f.json) return json(ctx, f.output !== undefined ? { job, files } : job);
+  if (!result) return out(ctx, `Taking stills (job ${job.id}). Follow it with \`loudscene status ${job.id}\`, or pass --wait.`);
+  const saved = f.output !== undefined;
+  out(ctx, table(result.stills.map((s, i) => [`${s.t} s`, (saved ? files[i] : s.url) ?? "(not captured)"]), ["AT", saved ? "FILE" : "PNG"]));
+  if (result.layout_errors || result.layout_warnings) out(ctx, `\nLayout check: ${result.layout_errors ?? 0} error(s), ${result.layout_warnings ?? 0} warning(s). Open the video to look: loudscene open ${id}`);
+  if (!saved) out(ctx, "\nThe links expire in about 10 minutes. Save the PNGs with -o <dir>.");
+}
+
 async function render(ctx: Ctx, p: ParsedCli) {
   const id = assertId(need(p.positionals, 0, "video id", "loudscene render <video id> [--formats 16:9,9:16] [--wait]"), "video");
   const api = await client(ctx);
@@ -325,9 +370,7 @@ async function download(ctx: Ctx, p: ParsedCli) {
   const dir = resolve(ctx.flags.output ?? ".");
   await mkdir(dir, { recursive: true });
   const file = join(dir, `loudscene-${r.video_id.slice(0, 8)}-${formatSlug(r.format)}-${r.resolution}p.mp4`);
-  const res = await ctx.io.fetch(r.url);
-  if (!res.ok || !res.body) throw new CliError(`Download failed: ${res.status} ${res.statusText}`);
-  await pipeline(Readable.fromWeb(res.body as unknown as NodeReadableStream<Uint8Array>), createWriteStream(file));
+  await save(ctx, r.url, file);
   if (ctx.flags.json) return json(ctx, { file, render: r });
   out(ctx, file);
 }
@@ -385,6 +428,7 @@ export async function run(argv: string[], io: Io): Promise<number> {
       create,
       status,
       update,
+      stills,
       render,
       download,
       open,

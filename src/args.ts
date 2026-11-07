@@ -9,7 +9,7 @@ export const FORMATS = ["16:9", "9:16", "1:1", "4:5"] as const;
 export type Format = (typeof FORMATS)[number];
 export const RESOLUTIONS = [720, 1080, 2160] as const;
 
-export const COMMANDS = ["login", "logout", "whoami", "brand", "brands", "stories", "create", "status", "update", "render", "download", "open", "mcp", "help", "version"] as const;
+export const COMMANDS = ["login", "logout", "whoami", "brand", "brands", "stories", "create", "status", "update", "stills", "render", "download", "open", "mcp", "help", "version"] as const;
 export type Command = (typeof COMMANDS)[number];
 
 export class UsageError extends Error {
@@ -36,6 +36,8 @@ export interface Flags {
   fields?: Record<string, unknown>;
   /** Shown in the video's version history (update). */
   note?: string;
+  /** Moments for stills, in seconds. */
+  times?: number[];
   output?: string;
   key?: string;
   apiUrl?: string;
@@ -68,6 +70,7 @@ const OPTIONS = {
   title: { type: "string" },
   field: { type: "string", multiple: true },
   note: { type: "string" },
+  at: { type: "string" },
   output: { type: "string", short: "o" },
   key: { type: "string" },
   "api-url": { type: "string" },
@@ -108,6 +111,16 @@ export function parseFields(pairs: string[]): Record<string, unknown> {
   return out;
 }
 
+/** "0,4.5,12" → [0, 4.5, 12]: moments of a video in seconds, 1 to 24 of them. */
+export function parseTimes(raw: string): number[] {
+  const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  const times = parts.map(Number);
+  if (times.length === 0 || times.length > 24 || times.some((t) => !Number.isFinite(t) || t < 0 || t > 600)) {
+    throw new UsageError("--at takes 1 to 24 moments in seconds (0 to 600), comma-separated, e.g. --at 0,4.5,12.");
+  }
+  return times;
+}
+
 function number(name: string, raw: string | undefined, check: (n: number) => boolean, hint: string): number | undefined {
   if (raw === undefined) return undefined;
   const n = Number(raw);
@@ -146,6 +159,7 @@ export function parseCli(argv: string[]): ParsedCli {
     ...(o.title !== undefined ? { title: o.title } : {}),
     ...(o.field !== undefined ? { fields: parseFields(o.field) } : {}),
     ...(o.note !== undefined ? { note: o.note } : {}),
+    ...(o.at !== undefined ? { times: parseTimes(o.at) } : {}),
     ...(o.output !== undefined ? { output: o.output } : {}),
     ...(o.key !== undefined ? { key: o.key } : {}),
     ...(o["api-url"] !== undefined ? { apiUrl: o["api-url"] } : {}),
