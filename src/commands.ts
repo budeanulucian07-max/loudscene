@@ -41,7 +41,7 @@ export class CliError extends Error {
 
 export const HELP = `loudscene: on-brand videos from your terminal and your AI agents.
 
-Usage: loudscene <command> [options]
+Usage: loudscene <command> [options]       loudscene <command> --help for one command
 
 Account
   login [--key ls_live_...]        Save an API key (Settings > API keys) to ~/.config/loudscene/config.json
@@ -87,6 +87,78 @@ Options
 Environment: LOUDSCENE_API_KEY overrides the saved key; LOUDSCENE_API_URL overrides the server.
 Credits: AI generations count against your plan's monthly generations; the first render of a video
 version costs 1 credit per started minute and covers every format of that version.`;
+
+/** `loudscene <command> --help` and `loudscene help <command>`: usage, what it does, an example. */
+export const COMMAND_HELP: Record<string, string> = {
+  login: `Usage: loudscene login [--key ls_live_...]
+
+Checks an API key against the server and saves it to ~/.config/loudscene/config.json (0600).
+Without --key it asks for the key without echoing it. Keys: Settings > API keys (Pro plan and up).`,
+  logout: `Usage: loudscene logout
+
+Removes the saved key. LOUDSCENE_API_KEY, when set, still works.`,
+  whoami: `Usage: loudscene whoami [--json]
+
+Shows which key (masked) and server are in use, where the key comes from, and checks it.`,
+  brand: `Usage: loudscene brand <url> [--wait]
+
+Reads a public website and saves its brand (colours, fonts, logo, tone) as a brand kit.
+A token link or contract address works too: the kit comes from the token's website or its image.
+
+Example: loudscene brand yourbrand.com --wait`,
+  brands: `Usage: loudscene brands [--json]
+
+Lists the workspace's brand kits, default first. Pass an id to create --brand.`,
+  stories: `Usage: loudscene stories [--json]
+
+Lists the story templates with their editable fields. Pass an id to create --story.`,
+  create: `Usage: loudscene create [--token <contract or link>] [--url <site> | --brand <kit id>] [--brief "<text>"]
+         [--story <id>] [--formats 16:9,9:16,1:1,4:5] [--duration <s>] [--locale <code>] [--title <text>]
+         [--wait] [--render]
+
+Creates a video. --token makes a token's launch film from its contract (live figures, its image);
+--brief is optional then. --wait waits for the AI generation; --render then renders every --formats.
+
+Examples:
+  loudscene create --token 0xCD291FA4d3e2Eb43e4639625092D31ae10E61111 --formats 16:9 --render --wait
+  loudscene create --url yourbrand.com --brief "We just launched v2." --formats 9:16,1:1 --wait`,
+  status: `Usage: loudscene status <job|video|render id> [--json]
+
+Status and progress of a job, a video or a render. For a video it also lists its fields
+(keys, types, values), the ones update --field changes.`,
+  update: `Usage: loudscene update <video id> [--field key=value ...] [--field key:=<json> ...] [--title <text>] [--note <text>]
+
+Changes a video's text and values without AI and at no cost. The change is saved as a new version;
+render it again for new MP4s. key=value sends text; key:=<json> sends numbers, toggles, images
+({"url":"https://..."}) and lists. The field keys are listed by \`loudscene status <video id>\`.
+
+Example: loudscene update <video id> --field headline="Live on mainnet" --field price:=29 --note "price"`,
+  stills: `Usage: loudscene stills <video id> --at 0,4.5,12 [--formats 9:16] [--wait] [-o <dir>]
+
+PNG frames of the current version at those seconds (1 to 24 of them), to check the look before
+rendering. Free. Prints signed links (valid about 10 minutes); -o saves the PNGs and implies --wait.
+
+Example: loudscene stills <video id> --at 1,6,12 -o ./frames`,
+  render: `Usage: loudscene render <video id> [--formats 16:9,9:16,1:1,4:5] [--resolution 720|1080|2160]
+         [--translate de,es] [--wait]
+
+Renders MP4s of the current version (default: the video's main format). The first render of a
+version costs 1 credit per started minute and covers every format of that version.
+--translate also makes a translated copy per language (up to 3, one AI generation each).
+
+Example: loudscene render <video id> --formats 9:16,1:1 --resolution 1080 --wait`,
+  download: `Usage: loudscene download <render id> [-o <dir>] [--wait]
+
+Saves a finished render as loudscene-<video>-<format>-<res>p.mp4. --wait waits for it to finish.`,
+  open: `Usage: loudscene open <video id>
+
+Opens the video in the loudscene editor in your browser (and prints the link).`,
+  mcp: `Usage: loudscene mcp
+
+Runs a stdio MCP server for clients that only speak stdio (Claude Desktop, some IDEs): one
+JSON-RPC message per line on stdin, forwarded to <server>/api/mcp with your key, answers on stdout.
+Configs: https://github.com/budeanulucian07-max/loudscene/tree/main/examples/mcp`,
+};
 
 interface Ctx {
   io: Io;
@@ -424,7 +496,8 @@ export async function run(argv: string[], io: Io): Promise<number> {
     return 0;
   }
   if (parsed.command === "help" || parsed.flags.help) {
-    io.stdout.write(`${HELP}\n`);
+    const topic = parsed.command === "help" ? parsed.positionals[0] : parsed.command;
+    io.stdout.write(`${(topic && COMMAND_HELP[topic]) ?? HELP}\n`);
     return 0;
   }
   try {

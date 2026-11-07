@@ -135,6 +135,29 @@ export function parseLocales(raw: string): string[] {
   return out;
 }
 
+/** The closest command to a typo, when it is close enough to be what was meant. */
+export function suggestCommand(input: string): string | null {
+  const distance = (a: string, b: string) => {
+    const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      let diagonal = row[0]!;
+      row[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const above = row[j]!;
+        row[j] = Math.min(above + 1, row[j - 1]! + 1, diagonal + (a[i - 1] === b[j - 1] ? 0 : 1));
+        diagonal = above;
+      }
+    }
+    return row[b.length]!;
+  };
+  let best: { name: string; d: number } | null = null;
+  for (const name of COMMANDS) {
+    const d = distance(input.toLowerCase(), name);
+    if (!best || d < best.d) best = { name, d };
+  }
+  return best && best.d <= Math.max(1, Math.floor(best.name.length / 3)) ? best.name : null;
+}
+
 function number(name: string, raw: string | undefined, check: (n: number) => boolean, hint: string): number | undefined {
   if (raw === undefined) return undefined;
   const n = Number(raw);
@@ -155,7 +178,10 @@ export function parseCli(argv: string[]): ParsedCli {
   if (o.version) command = "version";
   else if (!first) command = "help";
   else if ((COMMANDS as readonly string[]).includes(first)) command = first as Command;
-  else throw new UsageError(`Unknown command "${first}". Run \`loudscene help\` for the list.`);
+  else {
+    const guess = suggestCommand(first);
+    throw new UsageError(`Unknown command "${first}".${guess ? ` Did you mean \`loudscene ${guess}\`?` : ""} Run \`loudscene help\` for the list.`);
+  }
 
   const formatsRaw = o.formats ?? o.format;
   const flags: Flags = {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseCli, parseFields, parseFormats, parseLocales, parseTimes, UsageError } from "../src/args.js";
+import { COMMANDS, parseCli, parseFields, parseFormats, parseLocales, parseTimes, suggestCommand, UsageError } from "../src/args.js";
+import { COMMAND_HELP } from "../src/commands.js";
 import { maskKey, resolveApiUrl, resolveKey } from "../src/config.js";
 
 describe("parseCli", () => {
@@ -70,6 +71,22 @@ describe("parseTimes", () => {
 
   it.each([[""], ["a"], ["-1"], ["601"], [Array.from({ length: 25 }, (_, i) => i).join(",")]])("refuses %j", (raw) => {
     expect(() => parseTimes(raw)).toThrow(UsageError);
+  });
+});
+
+describe("help and typos", () => {
+  it("suggests the command that was meant", () => {
+    expect(suggestCommand("stils")).toBe("stills");
+    expect(suggestCommand("rendr")).toBe("render");
+    expect(suggestCommand("Updte")).toBe("update");
+    expect(suggestCommand("frobnicate")).toBeNull();
+    expect(() => parseCli(["dowload", "x"])).toThrow(/Did you mean `loudscene download`/);
+  });
+
+  it("has a help page for every command", () => {
+    for (const name of COMMANDS.filter((c) => c !== "help" && c !== "version")) {
+      expect(COMMAND_HELP[name], name).toMatch(new RegExp(`^Usage: loudscene ${name}`));
+    }
   });
 });
 

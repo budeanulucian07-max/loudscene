@@ -156,6 +156,21 @@ describe("videos", () => {
   });
 });
 
+describe("help", () => {
+  it("prints one command's help for `<command> --help` and `help <command>`, the full list otherwise", async () => {
+    const h = await harness(() => undefined);
+    expect(await run(["stills", "--help"], h.io)).toBe(0);
+    expect(h.out()).toMatch(/^Usage: loudscene stills <video id> --at/);
+    h.stdout.length = 0;
+    expect(await run(["help", "update"], h.io)).toBe(0);
+    expect(h.out()).toContain("key:=<json>");
+    h.stdout.length = 0;
+    expect(await run(["help"], h.io)).toBe(0);
+    expect(h.out()).toContain("loudscene <command> --help");
+    expect(h.requests).toHaveLength(0);
+  });
+});
+
 describe("update", () => {
   const withFields = (headline: string, version = 2) => ({
     ...video("ready"),
