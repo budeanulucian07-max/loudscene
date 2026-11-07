@@ -7,3 +7,10 @@ you in the changelog once it is fixed, if you want.
 
 Never paste an API key (`ls_live_…`) into an issue. If one leaked, revoke it at once in
 loudscene → Settings → API keys and create a new one.
+
+## Dependencies
+
+The published package has no runtime dependencies: only Node's standard library. Dev
+dependencies (TypeScript, Vitest, Node types) are kept current by Dependabot
+(`.github/dependabot.yml`: npm weekly, grouped, majors by hand) and `pnpm audit` runs before
+every release.
