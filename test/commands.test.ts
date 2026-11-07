@@ -155,3 +155,37 @@ describe("videos", () => {
     expect(h.requests).toHaveLength(0);
   });
 });
+
+describe("update", () => {
+  const withFields = (headline: string, version = 2) => ({
+    ...video("ready"),
+    current_version: {
+      id: `v${version}`,
+      number: version,
+      doc: { scenes: [{ id: "hook", label: "Hook" }], fields: { headline: { type: "text", label: "Headline", value: headline }, price: { type: "number", label: "Price", value: 29 } } },
+    },
+  });
+
+  it("sends a PATCH with typed fields, the title and the note, and prints the new version", async () => {
+    const h = await harness((m, p) => (m === "PATCH" && p === `/api/v1/videos/${VIDEO}` ? Response.json(withFields("Launch day")) : undefined), { LOUDSCENE_API_KEY: KEY });
+    expect(await run(["update", VIDEO, "--field", "headline=Launch day", "--field", "price:=29", "--title", "Acme v2", "--note", "new price"], h.io)).toBe(0);
+    expect(h.requests).toHaveLength(1);
+    expect(h.requests[0]!.body).toEqual({ fields: { headline: "Launch day", price: 29 }, title: "Acme v2", note: "new price" });
+    expect(h.out()).toMatch(/fields\s+headline\s+text\s+"Launch day"/);
+    expect(h.out()).toContain("Saved as version 2.");
+    expect(h.out()).toContain(`loudscene render ${VIDEO} --wait`);
+  });
+
+  it("status on a video lists its field values", async () => {
+    const h = await harness((m, p) => (p === `/api/v1/videos/${VIDEO}` ? Response.json(withFields("Hello", 1)) : undefined), { LOUDSCENE_API_KEY: KEY });
+    expect(await run(["status", VIDEO], h.io)).toBe(0);
+    expect(h.out()).toMatch(/price\s+number\s+29/);
+  });
+
+  it("refuses an update with nothing to change, before calling the API", async () => {
+    const h = await harness(() => undefined, { LOUDSCENE_API_KEY: KEY });
+    expect(await run(["update", VIDEO, "--note", "only a note"], h.io)).toBe(2);
+    expect(h.stderr.join("")).toContain("Nothing to change");
+    expect(h.requests).toHaveLength(0);
+  });
+});

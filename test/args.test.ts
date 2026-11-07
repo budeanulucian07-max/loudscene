@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCli, parseFormats, UsageError } from "../src/args.js";
+import { parseCli, parseFields, parseFormats, UsageError } from "../src/args.js";
 import { maskKey, resolveApiUrl, resolveKey } from "../src/config.js";
 
 describe("parseCli", () => {
@@ -40,6 +40,26 @@ describe("parseCli", () => {
 
   it("normalises and de-duplicates formats", () => {
     expect(parseFormats("16x9, 9/16,16:9")).toEqual(["16:9", "9:16"]);
+  });
+});
+
+describe("parseFields", () => {
+  it("keeps key=value as text and parses key:=value as JSON", () => {
+    expect(parseFields(["headline=Launch day", "price:=29", "dark:=true", 'logo:={"url":"https://x.test/l.png"}', "tagline=a=b"])).toEqual({
+      headline: "Launch day",
+      price: 29,
+      dark: true,
+      logo: { url: "https://x.test/l.png" },
+      tagline: "a=b",
+    });
+  });
+
+  it("collects repeated --field flags", () => {
+    expect(parseCli(["update", "x", "--field", "a=1", "--field", "b:=2"]).flags.fields).toEqual({ a: "1", b: 2 });
+  });
+
+  it.each([["=nokey"], ["novalue"], ["price:=twenty"]])("refuses %s", (pair) => {
+    expect(() => parseFields([pair])).toThrow(UsageError);
   });
 });
 

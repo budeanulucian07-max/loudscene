@@ -53,7 +53,11 @@ export interface Video {
   brand_kit_id: string | null;
   default_format: string;
   duration_sec: number | null;
-  current_version: { id: string; number: number; doc: { scenes?: { id: string; label?: string; duration?: number }[] } } | null;
+  current_version: {
+    id: string;
+    number: number;
+    doc: { scenes?: { id: string; label?: string; duration?: number }[]; fields?: Record<string, { type?: string; label?: string; value?: unknown }> };
+  } | null;
   job: Job | null;
 }
 
@@ -83,7 +87,7 @@ export class ApiClient {
     private readonly fetchImpl: FetchLike = fetch,
   ) {}
 
-  async request<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+  async request<T>(method: "GET" | "POST" | "PATCH", path: string, body?: unknown): Promise<T> {
     const headers: Record<string, string> = { authorization: `Bearer ${this.key}`, accept: "application/json", "user-agent": "loudscene-cli" };
     if (body !== undefined) headers["content-type"] = "application/json";
     if (method === "POST") headers["idempotency-key"] = randomUUID();
@@ -127,6 +131,10 @@ export class ApiClient {
   }
   render(id: string) {
     return this.request<Render>("GET", `/v1/renders/${encodeURIComponent(id)}`);
+  }
+  /** Field values and/or the title, without AI and at no cost; field changes become a new version. */
+  updateVideo(id: string, body: { fields?: Record<string, unknown>; title?: string; note?: string }) {
+    return this.request<Video>("PATCH", `/v1/videos/${encodeURIComponent(id)}`, body);
   }
   renderFormats(videoId: string, formats: string[], resolution?: number) {
     return this.request<{ renders: Render[] }>("POST", `/v1/videos/${encodeURIComponent(videoId)}/variants`, { formats, ...(resolution ? { resolution } : {}) });

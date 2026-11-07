@@ -60,7 +60,10 @@ Videos
                                    figures and its image; --brief is optional then). --wait waits
                                    for the AI generation; --render then renders every --formats
                                    (spends credits, see below)
-  status <job|video|render id>     Status and progress of anything
+  status <job|video|render id>     Status and progress of anything (for a video: its field values)
+  update <video id> [--field key=value ...] [--field key:=<json> ...] [--title <text>] [--note <text>]
+                                   Change a video's text and values, without AI and at no cost.
+                                   The change is a new version: render it again for new MP4s
   render <video id> [--formats 16:9,9:16,1:1,4:5] [--resolution 720|1080|2160] [--wait]
                                    Render MP4s (default: the video's main format)
   download <render id> [-o <dir>] [--wait]
@@ -144,7 +147,16 @@ function printVideo(ctx: Ctx, v: Video) {
   out(ctx, `status   ${v.status}${v.job ? ` · job ${v.job.id} ${pct(v.job.progress)}` : ""}`);
   out(ctx, `format   ${v.default_format}${v.duration_sec ? ` · ${v.duration_sec} s` : ""}${v.story_id ? ` · story ${v.story_id}` : ""}`);
   if (scenes.length) out(ctx, `scenes   ${scenes.map((s) => s.label ?? s.id).join(" → ")}`);
+  const fields = Object.entries(v.current_version?.doc?.fields ?? {});
+  if (fields.length) {
+    const rows = table(fields.map(([key, f]) => [key, f.type ?? "", shorten(JSON.stringify(f.value ?? null))]));
+    out(ctx, `fields   ${rows.split("\n").join("\n         ")}`);
+  }
   out(ctx, `editor   ${ctx.apiUrl}/app/videos/${v.id}`);
+}
+
+function shorten(s: string, max = 60): string {
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
 function printRenders(ctx: Ctx, renders: Render[]) {
@@ -275,6 +287,24 @@ async function status(ctx: Ctx, p: ParsedCli) {
   throw new CliError(`Nothing with id ${id} in this workspace (checked jobs, videos and renders).`);
 }
 
+async function update(ctx: Ctx, p: ParsedCli) {
+  const id = assertId(need(p.positionals, 0, "video id", 'loudscene update <video id> --field headline="Launch day" [--title <text>]'), "video");
+  const f = ctx.flags;
+  if (!f.fields && f.title === undefined) {
+    throw new UsageError(`Nothing to change. Pass --field key=value (the keys are listed by \`loudscene status ${id}\`) and/or --title "…".`);
+  }
+  const api = await client(ctx);
+  const video = await api.updateVideo(id, {
+    ...(f.fields ? { fields: f.fields } : {}),
+    ...(f.title !== undefined ? { title: f.title } : {}),
+    ...(f.note !== undefined ? { note: f.note } : {}),
+  });
+  if (ctx.flags.json) return json(ctx, video);
+  printVideo(ctx, video);
+  const version = video.current_version ? `Saved as version ${video.current_version.number}. ` : "";
+  out(ctx, `\n${version}Render it: loudscene render ${video.id} --wait`);
+}
+
 async function render(ctx: Ctx, p: ParsedCli) {
   const id = assertId(need(p.positionals, 0, "video id", "loudscene render <video id> [--formats 16:9,9:16] [--wait]"), "video");
   const api = await client(ctx);
@@ -354,6 +384,7 @@ export async function run(argv: string[], io: Io): Promise<number> {
       stories,
       create,
       status,
+      update,
       render,
       download,
       open,

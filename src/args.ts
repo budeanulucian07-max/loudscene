@@ -9,7 +9,7 @@ export const FORMATS = ["16:9", "9:16", "1:1", "4:5"] as const;
 export type Format = (typeof FORMATS)[number];
 export const RESOLUTIONS = [720, 1080, 2160] as const;
 
-export const COMMANDS = ["login", "logout", "whoami", "brand", "brands", "stories", "create", "status", "render", "download", "open", "mcp", "help", "version"] as const;
+export const COMMANDS = ["login", "logout", "whoami", "brand", "brands", "stories", "create", "status", "update", "render", "download", "open", "mcp", "help", "version"] as const;
 export type Command = (typeof COMMANDS)[number];
 
 export class UsageError extends Error {
@@ -32,6 +32,10 @@ export interface Flags {
   resolution?: number;
   locale?: string;
   title?: string;
+  /** `--field key=value` (text) and `--field key:=<json>` (numbers, toggles, images, lists). */
+  fields?: Record<string, unknown>;
+  /** Shown in the video's version history (update). */
+  note?: string;
   output?: string;
   key?: string;
   apiUrl?: string;
@@ -62,6 +66,8 @@ const OPTIONS = {
   resolution: { type: "string" },
   locale: { type: "string" },
   title: { type: "string" },
+  field: { type: "string", multiple: true },
+  note: { type: "string" },
   output: { type: "string", short: "o" },
   key: { type: "string" },
   "api-url": { type: "string" },
@@ -77,6 +83,28 @@ export function parseFormats(raw: string): Format[] {
     if (!out.includes(f as Format)) out.push(f as Format);
   }
   if (out.length === 0) throw new UsageError(`--formats needs at least one of ${FORMATS.join(", ")}.`);
+  return out;
+}
+
+/** The API takes field values typed: text as a string, the rest (numbers, toggles, images, lists) as JSON. */
+export function parseFields(pairs: string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const pair of pairs) {
+    const eq = pair.indexOf("=");
+    const typed = eq > 0 && pair[eq - 1] === ":";
+    const key = (eq > 0 ? pair.slice(0, typed ? eq - 1 : eq) : "").trim();
+    if (!key) throw new UsageError(`--field "${pair}" needs a key: --field headline="Launch day", or --field price:=29 for a typed value.`);
+    const raw = pair.slice(eq + 1);
+    if (!typed) {
+      out[key] = raw;
+      continue;
+    }
+    try {
+      out[key] = JSON.parse(raw);
+    } catch {
+      throw new UsageError(`--field ${key}:= takes JSON (29, true, {"url":"https://…"}, ["a","b"]). For text use --field ${key}=…`);
+    }
+  }
   return out;
 }
 
@@ -116,6 +144,8 @@ export function parseCli(argv: string[]): ParsedCli {
     ...(formatsRaw !== undefined ? { formats: parseFormats(formatsRaw) } : {}),
     ...(o.locale !== undefined ? { locale: o.locale } : {}),
     ...(o.title !== undefined ? { title: o.title } : {}),
+    ...(o.field !== undefined ? { fields: parseFields(o.field) } : {}),
+    ...(o.note !== undefined ? { note: o.note } : {}),
     ...(o.output !== undefined ? { output: o.output } : {}),
     ...(o.key !== undefined ? { key: o.key } : {}),
     ...(o["api-url"] !== undefined ? { apiUrl: o["api-url"] } : {}),
