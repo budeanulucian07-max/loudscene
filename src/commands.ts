@@ -49,6 +49,8 @@ No key needed
                                    figures and the link that plays it. No account, no AI
   live [--limit <n>]               The latest on Robinhood Chain from loudscene Score: launches,
                                    calls, founder seats, with their links
+  launches                         Torch tokens that used loudscene, with their Score pages
+  seats                            How many Season 1 founder seats on Score are taken
 
 Account
   login [--key ls_live_...]        Save an API key (Settings > API keys) to ~/.config/loudscene/config.json
@@ -175,6 +177,15 @@ launches with their market cap, KOL calls and founder seats taken, each with its
 No key needed. --limit shows only the newest n (1 to 100).
 
 Example: loudscene live --limit 5`,
+  launches: `Usage: loudscene launches [--json]
+
+The Torch tokens that used loudscene (a film from their contract, memes, or a loudscene service),
+each with its contract, since when, what it used and its Score page, then the rule that decides
+who is on the list. No key needed.`,
+  seats: `Usage: loudscene seats [--json]
+
+How many of the Season 1 founder seats on loudscene Score are taken, and how many are left.
+No key needed.`,
   mcp: `Usage: loudscene mcp
 
 Runs a stdio MCP server for clients that only speak stdio (Claude Desktop, some IDEs): one
@@ -549,6 +560,26 @@ async function live(ctx: Ctx) {
   out(ctx, table(shown.map((e) => [utc(e.at), e.kind, e.title, e.detail ?? "", e.url ?? ""]), ["TIME (UTC)", "KIND", "WHAT", "DETAIL", "LINK"]));
 }
 
+async function launches(ctx: Ctx) {
+  const list = await publicApi(ctx).torchLaunches();
+  if (ctx.flags.json) return json(ctx, list);
+  const rows = list.launches ?? [];
+  const updated = list.updatedAt ? ` (list updated ${utc(list.updatedAt)} UTC)` : "";
+  if (rows.length === 0) out(ctx, `No Torch token on the list yet${updated}.`);
+  else {
+    out(ctx, `${rows.length} Torch token${rows.length === 1 ? "" : "s"} used loudscene${updated}.\n`);
+    out(ctx, table(rows.map((l) => [`$${l.symbol}`, l.ca, l.since ? utc(l.since).slice(0, 10) : "", (l.signals ?? []).join(", "), l.page]), ["TOKEN", "CONTRACT", "SINCE", "USED", "SCORE PAGE"]));
+  }
+  if (list.rule) out(ctx, `\nWho is on it: ${list.rule}`);
+}
+
+async function seats(ctx: Ctx) {
+  const { taken, slots } = await publicApi(ctx).seats();
+  const left = Math.max(0, slots - taken);
+  if (ctx.flags.json) return json(ctx, { taken, slots, left });
+  out(ctx, left === 0 ? `All ${slots} Season 1 founder seats are taken.` : `${taken} of ${slots} Season 1 founder seats taken, ${left} left.`);
+}
+
 async function mcp(ctx: Ctx) {
   const key = await apiKey(ctx);
   ctx.io.stderr.write(`loudscene mcp: forwarding stdio to ${ctx.apiUrl}/api/mcp\n`);
@@ -602,6 +633,8 @@ export async function run(argv: string[], io: Io): Promise<number> {
       mcp,
       film,
       live,
+      launches,
+      seats,
     };
     await commands[parsed.command](ctx, parsed);
     return 0;

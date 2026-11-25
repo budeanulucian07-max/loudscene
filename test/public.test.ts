@@ -150,3 +150,61 @@ describe("live", () => {
     expect(h.requests).toHaveLength(1);
   });
 });
+
+describe("launches", () => {
+  const list = {
+    updatedAt: "2026-11-17T17:02:50.400Z",
+    launches: [{ ca: "0xcd291fa4d3e2eb43e4639625092d31ae10e61111", symbol: "LOUD", since: "2026-10-23T17:22:49.074297+00:00", page: "https://score.loudscene.com/p/robinhood/0xcd29", signals: ["film", "service"] }],
+    count: 1,
+    rule: "Any Torch token that used loudscene: a film from its contract address, memes, or a loudscene service.",
+  };
+
+  it("lists each token with its contract, date, signals and Score page, then the rule", async () => {
+    const h = await harness((p) => (p === "/api/torch/loud-launches" ? Response.json(list) : undefined));
+    expect(await run(["launches"], h.io)).toBe(0);
+    expect(h.requests[0]!.headers.authorization).toBeUndefined();
+    const out = h.out();
+    expect(out).toContain("1 Torch token used loudscene (list updated 2026-11-17 17:02 UTC).");
+    expect(out).toMatch(/\$LOUD\s+0xcd291fa4d3e2eb43e4639625092d31ae10e61111\s+2026-10-23\s+film, service\s+https:\/\/score\.loudscene\.com\/p\/robinhood\/0xcd29/);
+    expect(out).toContain(`Who is on it: ${list.rule}`);
+
+    h.stdout.length = 0;
+    expect(await run(["launches", "--json"], h.io)).toBe(0);
+    expect(JSON.parse(h.out())).toEqual(list);
+  });
+
+  it("says so when nobody is on the list", async () => {
+    const h = await harness(() => Response.json({ updatedAt: null, launches: [], count: 0, rule: "Any Torch token that used loudscene." }));
+    expect(await run(["launches"], h.io)).toBe(0);
+    expect(h.out()).toBe("No Torch token on the list yet.\n\nWho is on it: Any Torch token that used loudscene.\n");
+  });
+});
+
+describe("seats", () => {
+  it("prints the seats taken and left", async () => {
+    const h = await harness((p) => (p === "/api/creators/seats" ? Response.json({ taken: 27, slots: 50 }) : undefined));
+    expect(await run(["seats"], h.io)).toBe(0);
+    expect(h.out()).toBe("27 of 50 Season 1 founder seats taken, 23 left.\n");
+    h.stdout.length = 0;
+    expect(await run(["seats", "--json"], h.io)).toBe(0);
+    expect(JSON.parse(h.out())).toEqual({ taken: 27, slots: 50, left: 23 });
+  });
+
+  it("says when they are all gone", async () => {
+    const h = await harness(() => Response.json({ taken: 50, slots: 50 }));
+    expect(await run(["seats"], h.io)).toBe(0);
+    expect(h.out()).toBe("All 50 Season 1 founder seats are taken.\n");
+  });
+
+  it("reports a server error or an HTML page without crashing", async () => {
+    const h = await harness(() => new Response("<html>Bad gateway</html>", { status: 502, statusText: "Bad Gateway" }));
+    expect(await run(["seats"], h.io)).toBe(1);
+    expect(h.err()).toBe("Error: The server answered 502 Bad Gateway.\n");
+    const down = await harness(() => undefined);
+    down.io.fetch = async () => {
+      throw new TypeError("fetch failed");
+    };
+    expect(await run(["seats"], down.io)).toBe(1);
+    expect(down.err()).toBe("Error: Couldn't reach https://www.loudscene.com: fetch failed\n");
+  });
+});

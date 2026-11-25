@@ -79,6 +79,8 @@ describe("help and typos", () => {
     expect(suggestCommand("stils")).toBe("stills");
     expect(suggestCommand("rendr")).toBe("render");
     expect(suggestCommand("Updte")).toBe("update");
+    expect(suggestCommand("lunches")).toBe("launches");
+    expect(suggestCommand("seat")).toBe("seats");
     expect(suggestCommand("frobnicate")).toBeNull();
     expect(() => parseCli(["dowload", "x"])).toThrow(/Did you mean `loudscene download`/);
   });

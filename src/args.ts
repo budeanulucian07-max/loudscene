@@ -9,7 +9,7 @@ export const FORMATS = ["16:9", "9:16", "1:1", "4:5"] as const;
 export type Format = (typeof FORMATS)[number];
 export const RESOLUTIONS = [720, 1080, 2160] as const;
 
-export const COMMANDS = ["login", "logout", "whoami", "brand", "brands", "stories", "create", "status", "update", "stills", "render", "download", "open", "mcp", "film", "live", "help", "version"] as const;
+export const COMMANDS = ["login", "logout", "whoami", "brand", "brands", "stories", "create", "status", "update", "stills", "render", "download", "open", "mcp", "film", "live", "launches", "seats", "help", "version"] as const;
 export type Command = (typeof COMMANDS)[number];
 
 export class UsageError extends Error {
