@@ -156,3 +156,117 @@ export class ApiClient {
     });
   }
 }
+
+/* ------------------------------------------------------------- no key needed */
+
+/** A token as the home page's instant film reads it (GET /api/instant-film). */
+export interface InstantFilmToken {
+  chain: string;
+  chainName: string;
+  address: string;
+  name: string;
+  symbol: string;
+  imageUrl: string | null;
+  marketCap: number | null;
+  liquidityUsd: number | null;
+  volume24h: number | null;
+  holders: number | null;
+  readAt: string;
+  pairUrl: string | null;
+}
+
+export interface InstantFilm {
+  /** The player's document (scenes, the logo as data: URIs): large, and only the player needs it. */
+  doc?: unknown;
+  token: InstantFilmToken;
+  /** /t/<chain>/<address>/film: the page that plays the film. */
+  sharePath: string;
+  /** Sign-up, then a new video with this token: the editable, renderable version. */
+  makePath: string;
+  /** The team's builder record on HEY Research Lab, when it has one (Robinhood Chain). */
+  builderRecord: { name: string; statusLabel: string; url: string } | null;
+}
+
+/** One line of the Score live feed (GET /api/creators/live): a launch, a call, a founder seat. */
+export interface LiveEvent {
+  id: string;
+  kind: string;
+  title: string;
+  detail: string | null;
+  at: string;
+  /** A path on the site, e.g. /creators/p/robinhood/0x… */
+  href: string | null;
+}
+
+export interface TorchLaunches {
+  updatedAt: string | null;
+  launches: { ca: string; symbol: string; since: string | null; page: string; signals: string[] }[];
+  count: number;
+  rule: string;
+}
+
+export interface Seats {
+  taken: number;
+  slots: number;
+}
+
+/**
+ * The site's public JSON endpoints: no key, no Authorization header, nothing but a GET. They are
+ * rate-limited per IP; a 429 says how long to wait (Retry-After) and is never retried here.
+ */
+export class PublicApi {
+  constructor(
+    readonly baseUrl: string,
+    private readonly fetchImpl: FetchLike = fetch,
+    private readonly timeoutMs = 30_000,
+  ) {}
+
+  async get<T>(path: string): Promise<T> {
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${this.baseUrl}${path}`, {
+        method: "GET",
+        headers: { accept: "application/json", "user-agent": "loudscene-cli" },
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+    } catch (error) {
+      throw new ApiRequestError(0, "network_error", `Couldn't reach ${this.baseUrl}: ${error instanceof Error ? error.message : String(error)}`, null);
+    }
+    const text = await res.text();
+    let json: unknown = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      // A proxy or HTML error page: reported below with the status.
+    }
+    if (res.ok && json !== null) return json as T;
+    // Two error shapes: { error: { code, message } } (API v1) and { ok: false, error, message } (site routes).
+    const body = (json ?? {}) as { error?: unknown; message?: unknown };
+    const nested = typeof body.error === "object" && body.error !== null ? (body.error as { code?: string; message?: string }) : null;
+    const code = nested?.code ?? (typeof body.error === "string" ? body.error : `http_${res.status}`);
+    let message = nested?.message ?? (typeof body.message === "string" ? body.message : `The server answered ${res.status} ${res.statusText}.`);
+    if (res.status === 429) {
+      const wait = Number(res.headers.get("retry-after"));
+      message = `${message}${Number.isFinite(wait) && wait > 0 ? ` (loudscene asks to wait ${Math.ceil(wait)} s before the next one.)` : ""}`;
+    }
+    if (res.ok) message = `The server answered ${res.status} without JSON.`;
+    throw new ApiRequestError(res.status, code, message, res.headers.get("x-request-id"));
+  }
+
+  /** The home page's free film for a pasted contract address or token link: no AI, no account. */
+  instantFilm(q: string) {
+    return this.get<{ ok: true; film: InstantFilm }>(`/api/instant-film?q=${encodeURIComponent(q)}`);
+  }
+  /** The latest Robinhood Chain events on loudscene Score, newest first. */
+  live() {
+    return this.get<{ events: LiveEvent[] }>("/api/creators/live");
+  }
+  /** Torch tokens that used loudscene (a film, memes or a service), with their Score pages. */
+  torchLaunches() {
+    return this.get<TorchLaunches>("/api/torch/loud-launches");
+  }
+  /** Season 1 founder seats on loudscene Score. */
+  seats() {
+    return this.get<Seats>("/api/creators/seats");
+  }
+}

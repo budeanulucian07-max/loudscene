@@ -9,7 +9,7 @@ export const FORMATS = ["16:9", "9:16", "1:1", "4:5"] as const;
 export type Format = (typeof FORMATS)[number];
 export const RESOLUTIONS = [720, 1080, 2160] as const;
 
-export const COMMANDS = ["login", "logout", "whoami", "brand", "brands", "stories", "create", "status", "update", "stills", "render", "download", "open", "mcp", "help", "version"] as const;
+export const COMMANDS = ["login", "logout", "whoami", "brand", "brands", "stories", "create", "status", "update", "stills", "render", "download", "open", "mcp", "film", "help", "version"] as const;
 export type Command = (typeof COMMANDS)[number];
 
 export class UsageError extends Error {
@@ -21,6 +21,8 @@ export interface Flags {
   wait: boolean;
   render: boolean;
   help: boolean;
+  /** film: also open the film in the browser. */
+  open: boolean;
   url?: string;
   brand?: string;
   /** A token's contract address or link: its launch film (the REST API's `token`). */
@@ -59,6 +61,7 @@ const OPTIONS = {
   render: { type: "boolean" },
   help: { type: "boolean", short: "h" },
   version: { type: "boolean", short: "v" },
+  open: { type: "boolean" },
   url: { type: "string" },
   brand: { type: "string" },
   token: { type: "string" },
@@ -189,6 +192,7 @@ export function parseCli(argv: string[]): ParsedCli {
     wait: o.wait ?? false,
     render: o.render ?? false,
     help: o.help ?? false,
+    open: o.open ?? false,
     ...(o.url !== undefined ? { url: o.url } : {}),
     ...(o.brand !== undefined ? { brand: o.brand } : {}),
     ...(o.token !== undefined ? { token: o.token } : {}),

@@ -7,9 +7,9 @@ import { pipeline } from "node:stream/promises";
 import type { Writable } from "node:stream";
 import { need, parseCli, UsageError, type Flags, type ParsedCli } from "./args.js";
 import { runBridge } from "./bridge.js";
-import { ApiClient, ApiRequestError, TERMINAL, type FetchLike, type Job, type Render, type StillsResult, type Video } from "./client.js";
+import { ApiClient, ApiRequestError, PublicApi, TERMINAL, type FetchLike, type InstantFilm, type Job, type Render, type StillsResult, type Video } from "./client.js";
 import { API_KEY_RE, clearKey, configPath, maskKey, readConfig, resolveApiUrl, resolveKey, writeConfig, type Env } from "./config.js";
-import { formatSlug, pct, table } from "./output.js";
+import { formatSlug, pct, table, usd, utc } from "./output.js";
 
 /** Everything a command touches outside itself, so tests can run commands in memory. */
 export interface Io {
@@ -42,6 +42,11 @@ export class CliError extends Error {
 export const HELP = `loudscene: on-brand videos from your terminal and your AI agents.
 
 Usage: loudscene <command> [options]       loudscene <command> --help for one command
+
+No key needed
+  film <contract or token link> [--open]
+                                   A token's free instant film (the one on the home page): its
+                                   figures and the link that plays it. No account, no AI
 
 Account
   login [--key ls_live_...]        Save an API key (Settings > API keys) to ~/.config/loudscene/config.json
@@ -153,6 +158,14 @@ Saves a finished render as loudscene-<video>-<format>-<res>p.mp4. --wait waits f
   open: `Usage: loudscene open <video id>
 
 Opens the video in the loudscene editor in your browser (and prints the link).`,
+  film: `Usage: loudscene film <contract address or token link> [--open] [--json]
+
+The home page's free instant film for a token: paste its contract address, or its Torch,
+Dexscreener or explorer link. No key, no account, no AI. Prints the token's figures and the link
+that plays the film (--open opens it), plus the sign-up link that turns it into an editable video.
+Fresh films are limited per IP (15 a minute); a token asked for again within 5 minutes is cached.
+
+Example: loudscene film 0xCD291FA4d3e2Eb43e4639625092D31ae10E61111 --open`,
   mcp: `Usage: loudscene mcp
 
 Runs a stdio MCP server for clients that only speak stdio (Claude Desktop, some IDEs): one
@@ -468,6 +481,46 @@ async function open(ctx: Ctx, p: ParsedCli) {
   await ctx.io.openUrl(url).catch(() => undefined);
 }
 
+/* ------------------------------------------------------- no key needed */
+
+function publicApi(ctx: Ctx): PublicApi {
+  return new PublicApi(ctx.apiUrl, ctx.io.fetch);
+}
+
+/** A path on the site, as a full link. */
+const siteUrl = (ctx: Ctx, path: string) => (/^https?:\/\//.test(path) ? path : `${ctx.apiUrl}${path.startsWith("/") ? "" : "/"}${path}`);
+
+async function film(ctx: Ctx, p: ParsedCli) {
+  const q = need(p.positionals, 0, "contract address or token link", "loudscene film <contract address or token link> [--open]").trim();
+  if (q.length > 2048) throw new UsageError("That's too long for a contract address or a token link.");
+  const { film: f } = await publicApi(ctx).instantFilm(q);
+  const filmUrl = siteUrl(ctx, f.sharePath);
+  const makeUrl = siteUrl(ctx, f.makePath);
+  if (ctx.flags.json) {
+    // The player's doc (scenes, the logo as data: URIs) stays out: it is only for the player.
+    const { doc: _doc, ...rest } = f satisfies InstantFilm;
+    json(ctx, { ...rest, film_url: filmUrl, make_url: makeUrl });
+  } else {
+    const t = f.token;
+    const figures = [
+      t.marketCap !== null ? `market cap ${usd(t.marketCap)}` : null,
+      t.liquidityUsd !== null ? `liquidity ${usd(t.liquidityUsd)}` : null,
+      t.volume24h !== null ? `24h volume ${usd(t.volume24h)}` : null,
+      t.holders !== null ? `${t.holders.toLocaleString("en-US")} holders` : null,
+    ].filter(Boolean);
+    const rows: string[][] = [
+      ["contract", t.address],
+      ["figures", figures.length ? `${figures.join(" · ")} (read ${utc(t.readAt)} UTC)` : "no market figures yet"],
+    ];
+    if (f.builderRecord) rows.push(["builder", `${f.builderRecord.name} · ${f.builderRecord.statusLabel} · ${f.builderRecord.url}`]);
+    if (t.pairUrl) rows.push(["pair", t.pairUrl]);
+    rows.push(["film", filmUrl], ["make it", `${makeUrl}  (sign up: an editable film you can render)`]);
+    out(ctx, `${t.name} ($${t.symbol}) on ${t.chainName}`);
+    out(ctx, table(rows));
+  }
+  if (ctx.flags.open) await ctx.io.openUrl(filmUrl).catch(() => undefined);
+}
+
 async function mcp(ctx: Ctx) {
   const key = await apiKey(ctx);
   ctx.io.stderr.write(`loudscene mcp: forwarding stdio to ${ctx.apiUrl}/api/mcp\n`);
@@ -519,6 +572,7 @@ export async function run(argv: string[], io: Io): Promise<number> {
       download,
       open,
       mcp,
+      film,
     };
     await commands[parsed.command](ctx, parsed);
     return 0;
