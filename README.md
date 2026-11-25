@@ -26,14 +26,40 @@ loudscene is the marketing layer for crypto projects: a **launch film**, **memes
 - **Agents.** A remote MCP server for Claude, ChatGPT, Cursor and Windsurf, and `loudscene mcp` for clients that only speak stdio.
 - **Every format.** 16:9, 9:16, 1:1 and 4:5 MP4s, up to 4K.
 
-## What's new in 0.2.0
+## What's new in 0.3.0
 
-- `update <video id> --field key=value`: change a film's text and values without AI and at no cost (a new version).
-- `stills <video id> --at 1,6,12 -o ./frames`: free PNG frames, to check the look before you render.
-- `render --translate de,es`: translated copies of the video next to the MP4s (up to 3 languages).
-- `loudscene <command> --help` for one command, and a suggestion when a command is mistyped.
+Four commands that need no account and no API key:
 
-These are the same endpoints as the MCP tools `update_video` and `create_stills`. Full list: [CHANGELOG.md](CHANGELOG.md). CLI docs: [loudscene.com/docs/cli](https://www.loudscene.com/docs/cli).
+- `film <contract or link>`: the home page's free instant film for a token, with its figures and the link that plays it.
+- `live`: the latest on Robinhood Chain from loudscene Score (launches, calls, founder seats).
+- `launches`: the Torch tokens that used loudscene, with their Score pages.
+- `seats`: how many Season 1 founder seats are taken.
+
+0.2.0 brought `update`, `stills` and `render --translate`. Full list: [CHANGELOG.md](CHANGELOG.md). CLI docs: [loudscene.com/docs/cli](https://www.loudscene.com/docs/cli).
+
+## No key needed
+
+These read loudscene's public pages, so they work right after install, without `login`:
+
+```sh
+npx loudscene film 0xCD291FA4d3e2Eb43e4639625092D31ae10E61111 --open   # a token's film, in your browser
+npx loudscene live --limit 5                                           # newest launches, calls and seats
+npx loudscene launches                                                 # Torch tokens that used loudscene
+npx loudscene seats                                                    # 27 of 50 Season 1 founder seats taken, 23 left.
+```
+
+```
+$ loudscene film 0xCD291FA4d3e2Eb43e4639625092D31ae10E61111
+loudscene ($LOUD) on Robinhood Chain
+contract  0xCD291FA4d3e2Eb43e4639625092D31ae10E61111
+figures   market cap $19.0K · liquidity $16.3K · 24h volume $97 · 181 holders (read 2026-11-25 12:09 UTC)
+builder   loudscene · Active · https://heyresearch.xyz/project/loudscene?…
+pair      https://dexscreener.com/robinhood/0xd3e6cd0b…
+film      https://www.loudscene.com/t/robinhood/0xCD291FA4d3e2Eb43e4639625092D31ae10E61111/film
+make it   https://www.loudscene.com/signup?next=…  (sign up: an editable film you can render)
+```
+
+`film` takes a contract address or a Torch, Dexscreener or explorer link. A fresh film counts against a per-IP limit (15 a minute); the same token again within 5 minutes comes from the cache. When the limit is hit, the CLI says how long to wait and does not retry on its own. Every one of these takes `--json`.
 
 ## Quick start
 
@@ -65,6 +91,10 @@ Prefer no install at all? Paste a contract on [loudscene.com](https://www.loudsc
 
 | Command | Options | What it does |
 |---|---|---|
+| `film <contract or link>` | `[--open]` | No key. A token's free instant film: its figures, its builder record and the link that plays it |
+| `live` | `[--limit <n>]` | No key. The latest Robinhood Chain events on loudscene Score, with their links |
+| `launches` | | No key. Torch tokens that used loudscene, with their Score pages and the rule |
+| `seats` | | No key. Season 1 founder seats taken and left |
 | `login` | `[--key ls_live_…]` | Saves an API key to `~/.config/loudscene/config.json` |
 | `logout` | | Forgets the saved key |
 | `whoami` | | Shows which key and server are in use and checks the key |
