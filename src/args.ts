@@ -9,7 +9,7 @@ export const FORMATS = ["16:9", "9:16", "1:1", "4:5"] as const;
 export type Format = (typeof FORMATS)[number];
 export const RESOLUTIONS = [720, 1080, 2160] as const;
 
-export const COMMANDS = ["login", "logout", "whoami", "brand", "brands", "stories", "create", "status", "update", "stills", "render", "download", "open", "mcp", "film", "help", "version"] as const;
+export const COMMANDS = ["login", "logout", "whoami", "brand", "brands", "stories", "create", "status", "update", "stills", "render", "download", "open", "mcp", "film", "live", "help", "version"] as const;
 export type Command = (typeof COMMANDS)[number];
 
 export class UsageError extends Error {
@@ -47,6 +47,8 @@ export interface Flags {
   apiUrl?: string;
   /** Upper bound of --wait, in seconds. */
   timeout?: number;
+  /** live: how many events to show. */
+  limit?: number;
 }
 
 export interface ParsedCli {
@@ -81,6 +83,7 @@ const OPTIONS = {
   key: { type: "string" },
   "api-url": { type: "string" },
   timeout: { type: "string" },
+  limit: { type: "string" },
 } as const;
 
 /** "9:16", "9x16" and "9/16" all mean 9:16 (a colon is awkward in some shells and file names). */
@@ -215,6 +218,8 @@ export function parseCli(argv: string[]): ParsedCli {
   if (resolution !== undefined) flags.resolution = resolution;
   const timeout = number("timeout", o.timeout, (n) => n > 0 && n <= 24 * 3600, "must be a number of seconds.");
   if (timeout !== undefined) flags.timeout = timeout;
+  const limit = number("limit", o.limit, (n) => Number.isInteger(n) && n >= 1 && n <= 100, "must be a whole number from 1 to 100.");
+  if (limit !== undefined) flags.limit = limit;
   if (flags.url && flags.brand) throw new UsageError("Pass either --url or --brand, not both.");
 
   return { command, positionals: rest, flags };

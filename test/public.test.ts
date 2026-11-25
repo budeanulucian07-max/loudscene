@@ -112,3 +112,41 @@ describe("film", () => {
     expect(h.requests).toHaveLength(0);
   });
 });
+
+describe("live", () => {
+  const events = [
+    { id: "launch:0xaf26", kind: "launch", title: "$SPCXC launched on Uniswap V4", detail: "Market cap $43.6K", at: "2026-11-25T12:03:42.000Z", href: "/creators/p/robinhood/0xaf26" },
+    { id: "call:9", kind: "call", title: "@kol called $DCTY", detail: null, at: "2026-11-25T11:51:23.000Z", href: null },
+    { id: "seat:27", kind: "seat", title: "@gurungerem took founder seat #27", detail: "Season 1 founder, for good", at: "2026-11-13T06:02:26.099+00:00", href: "/creators/gurungerem" },
+  ];
+
+  it("prints the feed newest first, with Score links, and --limit keeps the newest n", async () => {
+    const h = await harness((p) => (p === "/api/creators/live" ? Response.json({ events }) : undefined));
+    expect(await run(["live"], h.io)).toBe(0);
+    expect(h.requests[0]!.headers.authorization).toBeUndefined();
+    const lines = h.out().trimEnd().split("\n");
+    expect(lines[0]).toMatch(/^TIME \(UTC\)\s+KIND\s+WHAT\s+DETAIL\s+LINK$/);
+    expect(lines[1]).toMatch(/^2026-11-25 12:03\s+launch\s+\$SPCXC launched on Uniswap V4\s+Market cap \$43\.6K\s+https:\/\/score\.loudscene\.com\/p\/robinhood\/0xaf26$/);
+    expect(lines[2]).toMatch(/^2026-11-25 11:51\s+call\s+@kol called \$DCTY$/);
+    expect(lines[3]).toMatch(/https:\/\/score\.loudscene\.com\/gurungerem$/);
+
+    h.stdout.length = 0;
+    expect(await run(["live", "--limit", "1", "--json"], h.io)).toBe(0);
+    expect(JSON.parse(h.out())).toEqual([{ ...events[0], url: "https://score.loudscene.com/p/robinhood/0xaf26" }]);
+  });
+
+  it("links to the server's own pages when --api-url points elsewhere", async () => {
+    const h = await harness((p) => (p === "/api/creators/live" ? Response.json({ events: events.slice(2) }) : undefined));
+    expect(await run(["live", "--api-url", "http://localhost:3000", "--json"], h.io)).toBe(0);
+    expect(JSON.parse(h.out())[0].url).toBe("http://localhost:3000/creators/gurungerem");
+  });
+
+  it("says so when the feed is empty, and refuses a bad --limit before asking", async () => {
+    const h = await harness(() => Response.json({ events: [] }));
+    expect(await run(["live"], h.io)).toBe(0);
+    expect(h.out()).toContain("Nothing on the Score feed right now");
+    expect(await run(["live", "--limit", "0"], h.io)).toBe(2);
+    expect(await run(["live", "--limit", "2.5"], h.io)).toBe(2);
+    expect(h.requests).toHaveLength(1);
+  });
+});

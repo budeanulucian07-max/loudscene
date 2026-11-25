@@ -8,7 +8,7 @@ import type { Writable } from "node:stream";
 import { need, parseCli, UsageError, type Flags, type ParsedCli } from "./args.js";
 import { runBridge } from "./bridge.js";
 import { ApiClient, ApiRequestError, PublicApi, TERMINAL, type FetchLike, type InstantFilm, type Job, type Render, type StillsResult, type Video } from "./client.js";
-import { API_KEY_RE, clearKey, configPath, maskKey, readConfig, resolveApiUrl, resolveKey, writeConfig, type Env } from "./config.js";
+import { API_KEY_RE, DEFAULT_API_URL, clearKey, configPath, maskKey, readConfig, resolveApiUrl, resolveKey, writeConfig, type Env } from "./config.js";
 import { formatSlug, pct, table, usd, utc } from "./output.js";
 
 /** Everything a command touches outside itself, so tests can run commands in memory. */
@@ -47,6 +47,8 @@ No key needed
   film <contract or token link> [--open]
                                    A token's free instant film (the one on the home page): its
                                    figures and the link that plays it. No account, no AI
+  live [--limit <n>]               The latest on Robinhood Chain from loudscene Score: launches,
+                                   calls, founder seats, with their links
 
 Account
   login [--key ls_live_...]        Save an API key (Settings > API keys) to ~/.config/loudscene/config.json
@@ -166,6 +168,13 @@ that plays the film (--open opens it), plus the sign-up link that turns it into 
 Fresh films are limited per IP (15 a minute); a token asked for again within 5 minutes is cached.
 
 Example: loudscene film 0xCD291FA4d3e2Eb43e4639625092D31ae10E61111 --open`,
+  live: `Usage: loudscene live [--limit <n>] [--json]
+
+The latest on Robinhood Chain from loudscene Score (score.loudscene.com), newest first: token
+launches with their market cap, KOL calls and founder seats taken, each with its Score link.
+No key needed. --limit shows only the newest n (1 to 100).
+
+Example: loudscene live --limit 5`,
   mcp: `Usage: loudscene mcp
 
 Runs a stdio MCP server for clients that only speak stdio (Claude Desktop, some IDEs): one
@@ -521,6 +530,25 @@ async function film(ctx: Ctx, p: ParsedCli) {
   if (ctx.flags.open) await ctx.io.openUrl(filmUrl).catch(() => undefined);
 }
 
+/**
+ * A Score path as its link: on production, score.loudscene.com (where /creators/… is served
+ * without the /creators prefix); against another server (--api-url), that server's own page.
+ */
+function scoreUrl(ctx: Ctx, href: string): string {
+  if (/^https?:\/\//.test(href)) return href;
+  if (ctx.apiUrl !== DEFAULT_API_URL) return siteUrl(ctx, href);
+  const path = href.replace(/^\/creators(?=\/|$)/, "");
+  return `https://score.loudscene.com${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+async function live(ctx: Ctx) {
+  const { events } = await publicApi(ctx).live();
+  const shown = (events ?? []).slice(0, ctx.flags.limit ?? undefined).map((e) => ({ ...e, url: e.href ? scoreUrl(ctx, e.href) : null }));
+  if (ctx.flags.json) return json(ctx, shown);
+  if (shown.length === 0) return out(ctx, "Nothing on the Score feed right now. Look again in a few minutes.");
+  out(ctx, table(shown.map((e) => [utc(e.at), e.kind, e.title, e.detail ?? "", e.url ?? ""]), ["TIME (UTC)", "KIND", "WHAT", "DETAIL", "LINK"]));
+}
+
 async function mcp(ctx: Ctx) {
   const key = await apiKey(ctx);
   ctx.io.stderr.write(`loudscene mcp: forwarding stdio to ${ctx.apiUrl}/api/mcp\n`);
@@ -573,6 +601,7 @@ export async function run(argv: string[], io: Io): Promise<number> {
       open,
       mcp,
       film,
+      live,
     };
     await commands[parsed.command](ctx, parsed);
     return 0;
