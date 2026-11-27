@@ -9,6 +9,7 @@ Launch films for any token from your terminal, your scripts and your AI agents.<
 
 <p align="center">
   <a href="https://www.npmjs.com/package/loudscene"><img alt="npm" src="https://img.shields.io/npm/v/loudscene?color=ccff00&labelColor=0d0c10&label=npm"></a>
+  <a href="https://github.com/budeanulucian07-max/loudscene/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/budeanulucian07-max/loudscene/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-ccff00?labelColor=0d0c10"></a>
   <img alt="Node >= 20" src="https://img.shields.io/badge/node-%3E%3D20-ccff00?labelColor=0d0c10">
   <a href="https://www.loudscene.com/docs/mcp"><img alt="MCP server" src="https://img.shields.io/badge/MCP-server-ccff00?labelColor=0d0c10"></a>
